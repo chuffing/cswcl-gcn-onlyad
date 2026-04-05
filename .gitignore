@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.idea/
+.venv/
+venv/
+.DS_Store
+runs/checkpoints/
+runs/logs/
+data_raw/
