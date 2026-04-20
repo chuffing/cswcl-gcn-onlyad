@@ -12,10 +12,10 @@ def split_support_query_per_class(
     query_ratio: float = 0.15, # ← 每类取 15% 作为 query（自适应模式）
 ):
     """
-    更贴论文的划分方式：
     对每一类 k：
-      - Q_k 只包含 1 个 query 样本
-      - S_k 包含其余所有训练样本
+      - 若 n_query 不为 None：固定取 n_query 个 query
+      - 否则：按 query_ratio 取比例 query
+      - 至少保留 1 个 support 样本
 
     返回：
       support_idx: list[Tensor]
@@ -45,9 +45,17 @@ def split_support_query_per_class(
             query_idx.append(torch.empty(0, dtype=torch.long, device=device))
             continue
 
-        # 论文设定：每类 1 个 query，其余全部 support
-        q = perm[:1].to(device)     # [1]
-        s = perm[1:].to(device)     # [Nk-1]
+        if n_query is not None:
+            q_count = int(n_query)
+        else:
+            q_count = int(round(len(perm) * query_ratio))
+            q_count = max(1, q_count)
+
+        # 至少保留一个 support，避免原型无法计算
+        q_count = min(q_count, len(perm) - 1)
+
+        q = perm[:q_count].to(device)
+        s = perm[q_count:].to(device)
 
         support_idx.append(s)
         query_idx.append(q)
@@ -61,6 +69,8 @@ def compute_prototypes(
     y: torch.Tensor,
     num_classes: int,
     seed: int = 42,
+    n_query: int = None,
+    query_ratio: float = 0.15,
 ):
     """
     对应论文 Eq.(13a)(13b)：
@@ -70,7 +80,9 @@ def compute_prototypes(
     support_idx, query_idx = split_support_query_per_class(
         y=y,
         num_classes=num_classes,
-        seed=seed
+        seed=seed,
+        n_query=n_query,
+        query_ratio=query_ratio,
     )
 
     emb_dim = z_fc.size(1)
@@ -167,11 +179,13 @@ def prototype_loss(
     num_classes: int,
     proto_classifier: nn.Module,
     seed: int = 42,
+    n_query: int = None,
+    query_ratio: float = 0.15,
 ):
     """
     更贴论文 Eq.(13)-(18) 的原型损失：
 
-      1) 每类划分 support / query（每类 1 个 query）
+      1) 每类划分 support / query（支持固定个数或比例）
       2) support 均值 -> prototype
       3) h_k = h(p_k), h_k^Q = h(q_k)
       4) e_hat_k = softmax((H^S)^T · h_k^Q)
@@ -185,10 +199,12 @@ def prototype_loss(
         z_hofc=z_hofc,
         y=y,
         num_classes=num_classes,
-        seed=seed
+        seed=seed,
+        n_query=n_query,
+        query_ratio=query_ratio,
     )
 
-    # 收集每个有效类别的唯一 query
+    # 收集每个有效类别的全部 query
     q_fc_list, q_hofc_list, q_label_list = [], [], []
 
     for k in range(num_classes):
@@ -196,19 +212,17 @@ def prototype_loss(
         if len(idx) == 0:
             continue
 
-        # 按论文，每类 query 只有 1 个
-        q_idx = idx[0]
-        q_fc_list.append(z_fc[q_idx])
-        q_hofc_list.append(z_hofc[q_idx])
-        q_label_list.append(k)
+        q_fc_list.append(z_fc[idx])
+        q_hofc_list.append(z_hofc[idx])
+        q_label_list.extend([k] * len(idx))
 
     # 如果没有任何 query，可返回 0 loss
     if len(q_label_list) == 0:
         loss = z_fc.sum() * 0.0
         return loss, p_fc, p_hofc
 
-    q_fc_t = torch.stack(q_fc_list, dim=0)         # [K_valid, D]
-    q_hofc_t = torch.stack(q_hofc_list, dim=0)     # [K_valid, D]
+    q_fc_t = torch.cat(q_fc_list, dim=0)           # [N_query, D]
+    q_hofc_t = torch.cat(q_hofc_list, dim=0)       # [N_query, D]
     q_labels = torch.tensor(q_label_list, dtype=torch.long, device=z_fc.device)
 
     # 只保留有效类别（防止某类没有 support）

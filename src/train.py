@@ -117,6 +117,7 @@ def run_5fold_training(cfg):
         age_fold = np.concatenate([age_train, age_test], axis=0)
         edu_fold = np.concatenate([edu_train, edu_test], axis=0)
         site_fold = np.concatenate([site_train, site_test], axis=0)
+        graph_knn = cfg.graph_knn if cfg.use_knn else None
 
         # 4) 构图
         graphs = build_two_view_graphs(
@@ -129,7 +130,7 @@ def run_5fold_training(cfg):
             sigma_fc=None,
             sigma_hofc=None,
             sigma_method=cfg.sigma_method,
-            knn=cfg.graph_knn,
+            knn=graph_knn,
             X_fc_train=X_fc_train_sel,
             X_hofc_train=X_hofc_train_sel,
             use_sex_gate=cfg.use_sex_gate,
@@ -145,7 +146,8 @@ def run_5fold_training(cfg):
 
         print(
             f"图构建完成 | sigma_fc={graphs['sigma_fc']:.2f} | "
-            f"sigma_hofc={graphs['sigma_hofc']:.2f} | knn={cfg.graph_knn}"
+            f"sigma_hofc={graphs['sigma_hofc']:.2f} | "
+            f"knn={'off' if graph_knn is None else graph_knn}"
         )
 
         # 5) 转 tensor
@@ -211,6 +213,8 @@ def run_5fold_training(cfg):
                 y=y_train_t,
                 num_classes=num_classes,
                 proto_classifier=proto_classifier,
+                n_query=cfg.n_query,
+                query_ratio=cfg.query_ratio,
                 mode=mode,
                 # p
                 p_lambda_proto=cfg.p_lambda_proto,

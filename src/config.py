@@ -60,6 +60,7 @@ class Config:
     focal_gamma: float = 2.0
 
     # ===== 图构建 =====
+    use_knn: bool = True
     graph_knn: int = 8
     use_sex_gate: bool = True
     use_age_gate: bool = True
@@ -67,7 +68,7 @@ class Config:
     sigma_method: str = "median"
 
     # ===== 教育信息 =====
-    use_edu_gate: bool = False
+    use_edu_gate: bool = False  # 原论文没用我也不用了而且加上去没效果
     edu_threshold: float = 2.0
     edu_weight: float = 0.20
 
@@ -78,7 +79,7 @@ class Config:
 
     # ===== Prototype query =====
     n_query: int = 1
-    query_ratio: float = 0.15
+    query_ratio: float = 0.1
     proto_resample_interval: int = 1
     normalize_w: bool = False
 
@@ -147,8 +148,14 @@ class Config:
             raise ValueError(
                 f"ablation_mode 必须属于 {VALID_ABLATION_MODES}，当前得到: {self.ablation_mode}"
             )
+        if self.n_query is not None and self.n_query < 1:
+            raise ValueError("n_query 必须为正整数或 None")
+        if not (0.0 < self.query_ratio < 1.0):
+            raise ValueError("query_ratio 必须在 (0, 1) 区间内")
         if self.proto_resample_interval < 1:
             raise ValueError("proto_resample_interval 必须 >= 1")
+        if self.use_knn and self.graph_knn < 1:
+            raise ValueError("开启 kNN 时，graph_knn 必须 >= 1")
 
         self._resolve_device()
 

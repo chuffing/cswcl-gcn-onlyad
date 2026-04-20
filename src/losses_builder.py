@@ -14,6 +14,8 @@ def total_loss(
     y: torch.Tensor,
     num_classes: int,
     proto_classifier: nn.Module,
+    n_query: int = None,
+    query_ratio: float = 0.15,
     mode: str = "cswcl",
     p_lambda_proto=0.03,
     lambda_cl=0.01,
@@ -60,6 +62,8 @@ def total_loss(
             num_classes=num_classes,
             proto_classifier=proto_classifier,
             seed=seed,
+            n_query=n_query,
+            query_ratio=query_ratio,
         )
         l_proto = torch.clamp(l_proto, max=2.0)
 
