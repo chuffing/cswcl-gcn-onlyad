@@ -68,6 +68,7 @@ def run_5fold_training(cfg):
     sex    = data["sex"]
     age    = data["age"]
     edu = data["edu"]
+    site = data["site"]
 
     num_classes = len(np.unique(y))
     print(f"数据集: {cfg.dataset_name} | 模式: {mode} | 模型: {model_name}")
@@ -92,6 +93,7 @@ def run_5fold_training(cfg):
         sex_train,    sex_test    = sex[train_idx],    sex[test_idx]
         age_train, age_test = age[train_idx], age[test_idx]
         edu_train, edu_test = edu[train_idx], edu[test_idx]
+        site_train, site_test = site[train_idx], site[test_idx]
 
         # 2) RFE（只在训练集 fit）
         (
@@ -114,6 +116,7 @@ def run_5fold_training(cfg):
         sex_fold    = np.concatenate([sex_train, sex_test], axis=0)
         age_fold = np.concatenate([age_train, age_test], axis=0)
         edu_fold = np.concatenate([edu_train, edu_test], axis=0)
+        site_fold = np.concatenate([site_train, site_test], axis=0)
 
         # 4) 构图
         graphs = build_two_view_graphs(
@@ -122,6 +125,7 @@ def run_5fold_training(cfg):
             sex=sex_fold,
             age=age_fold,
             edu=edu_fold,
+            site=site_fold,
             sigma_fc=None,
             sigma_hofc=None,
             sigma_method=cfg.sigma_method,
@@ -131,6 +135,8 @@ def run_5fold_training(cfg):
             use_sex_gate=cfg.use_sex_gate,
             use_age_gate=cfg.use_age_gate,
             use_edu_gate=cfg.use_edu_gate,
+            use_site_gate=cfg.use_site_gate,
+            site_gate_mode=cfg.site_gate_mode,
             age_threshold=cfg.age_threshold,
             edu_threshold=cfg.edu_threshold,
             edu_weight=cfg.edu_weight,
@@ -243,9 +249,9 @@ def run_5fold_training(cfg):
                     graphs["A_hofc_norm"]
                 )
                 logits_test = out_eval["logits"][test_idx_t]
-                prob        = torch.softmax(logits_test, dim=1).cpu().numpy()
-                pred        = np.argmax(prob, axis=1)
-                y_np        = y_fold[test_idx_t.cpu().numpy()]
+                prob = torch.softmax(logits_test, dim=1).cpu().numpy()
+                pred = np.argmax(prob, axis=1)
+                y_np = y_fold[test_idx_t.cpu().numpy()]
                 f1_macro, f1_weighted, bacc, auc = compute_metrics(y_np, pred, prob, num_classes)
                 score = 0.4 * f1_macro + 0.2 * f1_weighted + 0.25 * bacc + 0.15 * auc
 
@@ -296,9 +302,9 @@ def run_5fold_training(cfg):
                 graphs["A_hofc_norm"]
             )
             logits_test = out_eval["logits"][test_idx_t]
-            prob        = torch.softmax(logits_test, dim=1).cpu().numpy()
-            pred        = np.argmax(prob, axis=1)
-            y_np        = y_fold[test_idx_t.cpu().numpy()]
+            prob = torch.softmax(logits_test, dim=1).cpu().numpy()
+            pred = np.argmax(prob, axis=1)
+            y_np = y_fold[test_idx_t.cpu().numpy()]
             f1_macro, f1_weighted, bacc, auc = compute_metrics(y_np, pred, prob, num_classes)
 
         print(f"\n>>> Fold {fold} 最佳epoch: {best_epoch}")

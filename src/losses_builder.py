@@ -93,20 +93,6 @@ def total_loss(
             tau=temperature,
         )
 
-    # 4) 按模式拼总损失
-    # if mode == "mv":
-    #     loss = l_class
-    # elif mode == "p":
-    #     loss = l_class + lambda_proto * l_proto
-    # elif mode == "cp":
-    #     loss = l_class + lambda_cswcl * l_cl + lambda_proto * l_proto
-    # elif mode == "wcl":
-    #     loss = l_class + lambda_cswcl * l_wcl + lambda_proto * l_proto
-    # elif mode == "cswcl":
-    #     loss = l_class + lambda_cswcl * l_cswcl + lambda_proto * l_proto
-    # else:
-    #     raise ValueError(f"不支持的 mode: {mode}")
-
     if mode == "mv":
         loss = l_class
     elif mode == "p":

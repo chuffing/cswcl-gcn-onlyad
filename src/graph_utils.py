@@ -80,6 +80,31 @@ def compute_edu_gate(edu: np.ndarray, threshold: float = 2.0) -> np.ndarray:
     return gate
 
 
+def compute_site_gate(site: np.ndarray, mode: str = "cross") -> np.ndarray:
+    """
+    站点门控：
+    - cross: 只保留不同站点之间的边
+    - same:  只保留相同站点之间的边
+    """
+    site = np.asarray(site, dtype=object)
+    site_norm = np.array([str(x).strip() for x in site], dtype=object)
+    unknown = np.isin(site_norm, ["", "-1", "nan", "none", "None"])
+
+    same = (site_norm[:, None] == site_norm[None, :]).astype(np.float32)
+    if mode == "cross":
+        gate = 1.0 - same
+    elif mode == "same":
+        gate = same
+    else:
+        raise ValueError(f"Unsupported site gate mode: {mode}")
+
+    mask_bad = np.outer(unknown, np.ones(len(site_norm), dtype=bool)) | np.outer(
+        np.ones(len(site_norm), dtype=bool), unknown
+    )
+    gate[mask_bad] = 0.0
+    return gate.astype(np.float32)
+
+
 def knn_sparsify(A: np.ndarray, k: int) -> np.ndarray:
     """
     k-NN 稀疏化：每个节点只保留相似度最高的 k 个非自身邻居。
@@ -110,6 +135,7 @@ def build_adjacency(
     sex: np.ndarray = None,
     age: np.ndarray = None,
     edu: np.ndarray = None,
+    site: np.ndarray = None,
     sigma: float = None,
     sigma_method: str = "median",
     add_self_loop: bool = True,
@@ -118,6 +144,8 @@ def build_adjacency(
     use_sex_gate: bool = True,
     use_age_gate: bool = True,
     use_edu_gate: bool = True,
+    use_site_gate: bool = False,
+    site_gate_mode: str = "cross",
     age_threshold: float = 5.0,
     edu_threshold: float = 2.0,
     edu_weight: float = 0.10
@@ -142,6 +170,9 @@ def build_adjacency(
 
     if use_age_gate and age is not None:
         G = G * compute_age_gate(age, threshold=age_threshold)
+
+    if use_site_gate and site is not None:
+        G = G * compute_site_gate(site, mode=site_gate_mode)
 
     A = (S * G).astype(np.float32)
 
@@ -181,6 +212,7 @@ def build_two_view_graphs(
     sex: np.ndarray = None,
     age: np.ndarray = None,
     edu: np.ndarray = None,
+    site: np.ndarray = None,
     sigma_fc: float = None,
     sigma_hofc: float = None,
     sigma_method: str = "median",
@@ -190,6 +222,8 @@ def build_two_view_graphs(
     use_sex_gate: bool = True,
     use_age_gate: bool = True,
     use_edu_gate: bool = True,
+    use_site_gate: bool = False,
+    site_gate_mode: str = "cross",
     age_threshold: float = 5.0,
     edu_threshold: float = 2.0,
     edu_weight: float = 0.10,
@@ -203,6 +237,7 @@ def build_two_view_graphs(
         sex=sex,
         age=age,
         edu=edu,
+        site=site,
         sigma=sigma_fc,
         sigma_method=sigma_method,
         knn=knn,
@@ -211,6 +246,8 @@ def build_two_view_graphs(
         use_sex_gate=use_sex_gate,
         use_age_gate=use_age_gate,
         use_edu_gate=use_edu_gate,
+        use_site_gate=use_site_gate,
+        site_gate_mode=site_gate_mode,
         age_threshold=age_threshold,
         edu_threshold=edu_threshold,
         edu_weight=edu_weight
@@ -221,6 +258,7 @@ def build_two_view_graphs(
         sex=sex,
         age=age,
         edu=edu,
+        site=site,
         sigma=sigma_hofc,
         sigma_method=sigma_method,
         knn=knn,
@@ -229,6 +267,8 @@ def build_two_view_graphs(
         use_sex_gate=use_sex_gate,
         use_age_gate=use_age_gate,
         use_edu_gate=use_edu_gate,
+        use_site_gate=use_site_gate,
+        site_gate_mode=site_gate_mode,
         age_threshold=age_threshold,
         edu_threshold=edu_threshold,
         edu_weight=edu_weight

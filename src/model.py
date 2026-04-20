@@ -62,12 +62,12 @@ class TwoViewAMAttention(nn.Module):
         nn.init.xavier_uniform_(self.q)
 
     def _score(self, z):
-        h     = torch.tanh(self.W(z))       # [N, att_dim]
+        h = torch.tanh(self.W(z))       # [N, att_dim]
         omega = torch.matmul(h, self.q)     # [N, 1]，表示这个视图对当前样本的重要程度打分
         return omega
 
     def forward(self, z_fc, z_hofc):
-        omega_fc   = self._score(z_fc)      # [N, 1]
+        omega_fc = self._score(z_fc)      # [N, 1]
         omega_hofc = self._score(z_hofc)    # [N, 1]
 
         omega = torch.cat([omega_fc, omega_hofc], dim=1)  # [N, 2]
@@ -81,7 +81,7 @@ class ClassifierHead(nn.Module):
     def __init__(self, emb_dim, num_classes, dropout=0.3):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
-        self.fc      = nn.Linear(emb_dim, num_classes)
+        self.fc = nn.Linear(emb_dim, num_classes)
 
     def forward(self, z):
         return self.fc(self.dropout(z))  # 返回原始分数
@@ -95,13 +95,13 @@ class CSWCLGCN(nn.Module):
                  dropout=0.3, att_dim=None):
         super().__init__()
 
-        self.encoder_fc   = ThreeLayerGCN(in_dim, hidden_dim, emb_dim, dropout)
+        self.encoder_fc = ThreeLayerGCN(in_dim, hidden_dim, emb_dim, dropout)
         self.encoder_hofc = ThreeLayerGCN(in_dim, hidden_dim, emb_dim, dropout)
-        self.fusion       = TwoViewAMAttention(emb_dim, att_dim)
-        self.classifier   = ClassifierHead(emb_dim, num_classes, dropout)
+        self.fusion = TwoViewAMAttention(emb_dim, att_dim)
+        self.classifier = ClassifierHead(emb_dim, num_classes, dropout)
 
     def forward(self, x_fc, x_hofc, a_fc_norm, a_hofc_norm):
-        z_fc   = self.encoder_fc(x_fc,   a_fc_norm)
+        z_fc = self.encoder_fc(x_fc,   a_fc_norm)
         z_hofc = self.encoder_hofc(x_hofc, a_hofc_norm)
 
         z_global, alpha = self.fusion(z_fc, z_hofc)

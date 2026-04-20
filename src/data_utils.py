@@ -80,6 +80,39 @@ def normalize_numeric_value(v, default=-1.0):
         return float(default)
 
 
+def normalize_subject_id(v) -> str:
+    """
+    将 subject id 统一为目录可用字符串。
+    例如 1010001.0 -> 1010001，保留原本的 sub_0001 等写法。
+    """
+    if pd.isna(v):
+        raise ValueError("SUB_ID 存在缺失值")
+
+    if isinstance(v, str):
+        s = v.strip()
+        if s.endswith(".0"):
+            try:
+                return str(int(float(s)))
+            except:
+                return s
+        return s
+
+    try:
+        fv = float(v)
+        if fv.is_integer():
+            return str(int(fv))
+    except:
+        pass
+
+    return str(v).strip()
+
+
+def normalize_site_value(v) -> str:
+    if pd.isna(v):
+        return ""
+    return normalize_subject_id(v)
+
+
 def find_existing_column(df: pd.DataFrame, candidates):
     """
     在 df 中寻找候选列名，返回第一个匹配到的列名
@@ -91,28 +124,49 @@ def find_existing_column(df: pd.DataFrame, candidates):
     return None
 
 
-def load_nc_smc_lmci(root_dir: str):
-    data_dir = os.path.join(root_dir, "NC_SMC_LMCI")
-    csv_path = os.path.join(data_dir, "NC_SMC_LMCI.csv")
-    if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"找不到: {csv_path}")
+def resolve_dataset_dir(root_dir: str, dataset_dir_name: str) -> str:
+    data_dir = os.path.join(root_dir, dataset_dir_name)
+    if not os.path.isdir(data_dir):
+        raise FileNotFoundError(f"找不到数据目录: {data_dir}")
+
+    nested_data_dir = os.path.join(data_dir, dataset_dir_name)
+    if os.path.isdir(nested_data_dir):
+        return nested_data_dir
+    return data_dir
+
+
+def find_existing_file(dir_path: str, candidates):
+    for name in candidates:
+        path = os.path.join(dir_path, name)
+        if os.path.exists(path):
+            return path
+    return None
+
+
+def load_dataset_from_table(data_dir: str, csv_candidates):
+    csv_path = find_existing_file(data_dir, csv_candidates)
+    if csv_path is None:
+        raise FileNotFoundError(f"找不到表型文件，候选为: {csv_candidates}")
 
     pheno = pd.read_csv(csv_path)
 
     sub_col = find_existing_column(pheno, ["SUB_ID", "sub_id", "subject_id"])
+    site_col = find_existing_column(pheno, ["SITE_ID", "site_id", "site", "Site", "SITE"])
     group_col = find_existing_column(pheno, ["Group", "group", "label", "Label"])
     sex_col = find_existing_column(pheno, ["Sex", "SEX", "sex", "Gender", "gender"])
     age_col = find_existing_column(pheno, ["Age", "AGE", "age"])
     edu_col = find_existing_column(pheno, ["EDU", "Edu", "edu", "education"])
 
     if sub_col is None or group_col is None:
-        raise ValueError("NC_SMC_LMCI.csv 中未找到 SUB_ID 或 Group 列")
+        raise ValueError(f"{csv_path} 中未找到 SUB_ID 或 Group 列")
 
-    X_fc, X_hofc, y_list, sex_list, age_list, edu_list = [], [], [], [], [], []
+    X_fc, X_hofc = [], []
+    y_list, sex_list, age_list, edu_list, site_list = [], [], [], [], []
 
     for _, row in pheno.iterrows():
-        sub_id = str(row[sub_col])
-        mat_path = os.path.join(data_dir, sub_id, f"{sub_id}_aal_correlation.mat")
+        sub_id = normalize_subject_id(row[sub_col])
+        mat_dir = os.path.join(data_dir, sub_id)
+        mat_path = os.path.join(mat_dir, f"{sub_id}_aal_correlation.mat")
 
         if not os.path.exists(mat_path):
             raise FileNotFoundError(f"找不到: {mat_path}")
@@ -127,10 +181,12 @@ def load_nc_smc_lmci(root_dir: str):
         sex_val = normalize_sex_value(row[sex_col]) if sex_col is not None else -1
         age_val = normalize_numeric_value(row[age_col]) if age_col is not None else -1.0
         edu_val = normalize_numeric_value(row[edu_col]) if edu_col is not None else -1.0
+        site_val = normalize_site_value(row[site_col]) if site_col is not None else ""
 
         sex_list.append(sex_val)
         age_list.append(age_val)
         edu_list.append(edu_val)
+        site_list.append(site_val)
 
     return {
         "X_fc": np.stack(X_fc, axis=0),
@@ -139,14 +195,27 @@ def load_nc_smc_lmci(root_dir: str):
         "sex": np.array(sex_list, dtype=np.int64),
         "age": np.array(age_list, dtype=np.float32),
         "edu": np.array(edu_list, dtype=np.float32),
+        "site": np.array(site_list, dtype=object),
         "pheno": pheno
     }
 
 
+def load_nc_smc_lmci(root_dir: str):
+    data_dir = resolve_dataset_dir(root_dir, "NC_SMC_LMCI")
+    return load_dataset_from_table(data_dir, ["NC_SMC_LMCI.csv", "phenotype.csv"])
+
+
+def load_data_5(root_dir: str):
+    data_dir = resolve_dataset_dir(root_dir, "data_5")
+    return load_dataset_from_table(data_dir, ["phenotype.csv", "data_5.csv"])
+
+
 def load_dataset(cfg):
     """
-    当前仅支持 NC_SMC_LMCI 数据集
+    根据配置加载不同数据集，统一返回训练所需字段。
     """
-    if cfg.dataset_name != "nc_smc_lmci":
-        raise ValueError(f"当前仅支持数据集 nc_smc_lmci，收到: {cfg.dataset_name}")
-    return load_nc_smc_lmci(cfg.data_raw_dir)
+    if cfg.dataset_name == "nc_smc_lmci":
+        return load_nc_smc_lmci(cfg.data_raw_dir)
+    if cfg.dataset_name == "data_5":
+        return load_data_5(cfg.data_raw_dir)
+    raise ValueError(f"不支持的数据集: {cfg.dataset_name}")
