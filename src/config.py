@@ -79,6 +79,7 @@ class Config:
     # ===== Prototype query =====
     n_query: int = 1
     query_ratio: float = 0.15
+    proto_resample_interval: int = 1
     normalize_w: bool = False
 
     # ===== 对比学习 =====
@@ -109,7 +110,7 @@ class Config:
         self.lambda_wcl = 0.02
         self.wcl_lambda_proto = 0.04
 
-        self.lambda_cswcl = 0.02
+        self.lambda_cswcl = 0.03  # 0.02
         self.cswcl_lambda_proto = 0.05
 
         self.temperature = 0.5
@@ -124,6 +125,7 @@ class Config:
 
         self.use_site_gate = True
         self.site_gate_mode = "cross"
+        self.proto_resample_interval = 20
         self.device = "cuda"
 
     def _resolve_device(self):
@@ -145,6 +147,8 @@ class Config:
             raise ValueError(
                 f"ablation_mode 必须属于 {VALID_ABLATION_MODES}，当前得到: {self.ablation_mode}"
             )
+        if self.proto_resample_interval < 1:
+            raise ValueError("proto_resample_interval 必须 >= 1")
 
         self._resolve_device()
 

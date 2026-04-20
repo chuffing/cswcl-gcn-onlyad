@@ -185,6 +185,8 @@ def run_5fold_training(cfg):
         best_metrics = None
 
         for epoch in range(1, cfg.epochs + 1):
+            proto_cycle = (epoch - 1) // cfg.proto_resample_interval
+            proto_seed = cfg.seed + fold * 1000 + proto_cycle
             model.train()
             proto_classifier.train()
             optimizer.zero_grad()
@@ -228,7 +230,7 @@ def run_5fold_training(cfg):
                 # shared
                 temperature=cfg.temperature,
                 focal_gamma=cfg.focal_gamma,
-                seed=cfg.seed + epoch
+                seed=proto_seed
             )
 
             loss.backward()
